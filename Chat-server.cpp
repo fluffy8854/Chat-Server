@@ -14,15 +14,9 @@
 
 struct Client_INFO {
     SOCKADDR_IN addr;
-    char name[10];
+    char name[12];
 };
 
-void makeMassage(char* buf, char *name ) {
-
-    char tmp[BUFSIZE + 1];
-    strcpy_s(tmp, buf);
-    
-}
 
 // 소켓 함수 오류 출력 후 종료
 void err_quit(const char* msg)
@@ -88,12 +82,13 @@ int main(int argc, char* argv[])
     // 통신 변수
     int addrlen;
     char buf[BUFSIZE + 1];
-    char sendbuf[BUFSIZE + 1];
+    char sendbuf[BUFSIZE + 13];
     SOCKADDR_IN clientaddr;
     std::list<Client_INFO> L_CINFO;
     std::list<Client_INFO> ::iterator iter;
     Client_INFO CINFO;
     int namelen;
+    char name[12];
     char ack[7] = "cntack";
 
     // 서버 통신 부분
@@ -135,6 +130,30 @@ int main(int argc, char* argv[])
             printf("게임스타트\n");
         }
 
+        // 클라이언트 연결 종료 과정
+        if (!strncmp(buf, "fin", 3)) {
+            for (iter = L_CINFO.begin(); iter != L_CINFO.end(); iter++) {
+                Client_INFO finClient = *iter;
+                if (inet_ntoa(finClient.addr.sin_addr) == inet_ntoa(clientaddr.sin_addr) && ntohs(finClient.addr.sin_port) == ntohs(clientaddr.sin_port)) {
+                    L_CINFO.erase(iter);
+                    printf("***** 연결 된 리스트 수 : %d *****\n", L_CINFO.size());
+                    break;
+                }
+            }
+            retval = sendto(sock, " \nfin", 6, 0, (SOCKADDR*)&clientaddr, sizeof(clientaddr));
+            if (retval == SOCKET_ERROR) {
+                err_display("sendto()");
+            }
+        }
+
+        // 메세지 주인 닉네임 찾기
+        for (iter = L_CINFO.begin(); iter != L_CINFO.end(); iter++) {
+            Client_INFO recvInfo = *iter;
+            if (inet_ntoa(recvInfo.addr.sin_addr) == inet_ntoa(clientaddr.sin_addr) && ntohs(recvInfo.addr.sin_port) == ntohs(clientaddr.sin_port) ){
+                strcpy_s(name,recvInfo.name);
+            }
+        }
+
 
         printf("[받음 | IP : %s | PORT : %d] %s\n", inet_ntoa(clientaddr.sin_addr), ntohs(clientaddr.sin_port), buf);
         
@@ -142,10 +161,12 @@ int main(int argc, char* argv[])
             Client_INFO sendInfo = *iter;
             clientaddr = sendInfo.addr;
 
-            //strcpy_s(sendbuf, sendInfo.name);
             printf("[전송 | IP : %s | NAME : %s] %s\n", inet_ntoa(clientaddr.sin_addr), sendInfo.name, buf);
 
-            retval = sendto(sock, buf, BUFSIZE+1, 0, (SOCKADDR*)&clientaddr, sizeof(clientaddr));
+            strcpy_s(sendbuf, name); // 이름 설정
+            strcat_s(sendbuf, buf);
+
+            retval = sendto(sock, sendbuf, BUFSIZE+13, 0, (SOCKADDR*)&clientaddr, sizeof(clientaddr));
             if (retval == SOCKET_ERROR) {
                 err_display("sendto()");
             }
